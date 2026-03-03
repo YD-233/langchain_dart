@@ -219,6 +219,10 @@ extension CreateChatCompletionResponseMapper on CreateChatCompletionResponse {
         'created': created,
         'system_fingerprint': systemFingerprint,
         'logprobs': choice.logprobs?.toMap(),
+        if (msg.reasoningContent != null && msg.reasoningContent!.isNotEmpty)
+          'reasoning_content': msg.reasoningContent,
+        if (msg.reasoning != null && msg.reasoning!.isNotEmpty)
+          'reasoning': msg.reasoning,
       },
       usage: _mapUsage(usage),
     );
@@ -314,6 +318,11 @@ extension CreateChatCompletionStreamResponseMapper
         'created': created,
         if (model != null) 'model': model,
         if (systemFingerprint != null) 'system_fingerprint': systemFingerprint,
+        if (delta?.reasoningContent != null &&
+            delta!.reasoningContent!.isNotEmpty)
+          'reasoning_content': delta.reasoningContent,
+        if (delta?.reasoning != null && delta!.reasoning!.isNotEmpty)
+          'reasoning': delta.reasoning,
       },
       usage: _mapUsage(usage),
       streaming: true,
