@@ -22,6 +22,7 @@ void main() {
         ),
         ChatMessage.ai(
           'Assistant Response',
+          reasoningContent: 'Internal reasoning',
           toolCalls: const [
             AIChatMessageToolCall(
               id: 'some-id',
@@ -189,6 +190,40 @@ void main() {
           );
         }
       }
+    });
+
+    test('AIChatMessage concat preserves reasoning content', () {
+      final first = ChatMessage.ai(
+        'Hello',
+        reasoningContent: 'Reasoning ',
+        toolCalls: const [
+          AIChatMessageToolCall(
+            id: 'call-1',
+            name: 'tool',
+            argumentsRaw: '{"a": 1',
+            arguments: {'a': 1},
+          ),
+        ],
+      );
+      final second = ChatMessage.ai(
+        ' world',
+        reasoningContent: 'continues',
+        toolCalls: const [
+          AIChatMessageToolCall(
+            id: 'call-1',
+            name: '',
+            argumentsRaw: '}',
+            arguments: {'b': 2},
+          ),
+        ],
+      );
+
+      final merged = first.concat(second) as AIChatMessage;
+
+      expect(merged.content, 'Hello world');
+      expect(merged.reasoningContent, 'Reasoning continues');
+      expect(merged.toolCalls, hasLength(1));
+      expect(merged.toolCalls.first.arguments, {'a': 1, 'b': 2});
     });
   });
 }

@@ -118,8 +118,13 @@ sealed class ChatMessage {
   /// Type of message that is spoken by the AI.
   factory ChatMessage.ai(
     final String content, {
+    final String reasoningContent = '',
     final List<AIChatMessageToolCall> toolCalls = const [],
-  }) => AIChatMessage(content: content, toolCalls: toolCalls);
+  }) => AIChatMessage(
+    content: content,
+    reasoningContent: reasoningContent,
+    toolCalls: toolCalls,
+  );
 
   /// Type of message that is the response of calling a tool.
   factory ChatMessage.tool({
@@ -317,12 +322,17 @@ HumanChatMessage{
 @immutable
 class AIChatMessage extends ChatMessage {
   /// {@macro ai_chat_message}
-  const AIChatMessage({required this.content, this.toolCalls = const []});
+  const AIChatMessage({
+    required this.content,
+    this.reasoningContent = '',
+    this.toolCalls = const [],
+  });
 
   /// Converts a map to a [AIChatMessage].
   factory AIChatMessage.fromMap(Map<String, dynamic> map) => AIChatMessage(
     content: map['content'] as String,
-    toolCalls: (map['toolCalls'] as List<dynamic>)
+    reasoningContent: map['reasoningContent'] as String? ?? '',
+    toolCalls: ((map['toolCalls'] as List<dynamic>?) ?? const [])
         .map((i) => i as Map<String, dynamic>)
         .map(AIChatMessageToolCall.fromMap)
         .toList(growable: false),
@@ -333,12 +343,16 @@ class AIChatMessage extends ChatMessage {
   Map<String, dynamic> toMap() => {
     ...super.toMap(),
     'content': content,
+    if (reasoningContent.isNotEmpty) 'reasoningContent': reasoningContent,
     'toolCalls': toolCalls.map((t) => t.toMap()).toList(growable: false),
     'type': 'ai',
   };
 
   /// The content of the message.
   final String content;
+
+  /// Provider-normalized reasoning content kept separate from the final answer.
+  final String reasoningContent;
 
   /// The list of tool that the model wants to call.
   /// If the model does not want to call any tool, this list will be empty.
@@ -351,11 +365,17 @@ class AIChatMessage extends ChatMessage {
   bool operator ==(covariant final AIChatMessage other) {
     final listEquals = const DeepCollectionEquality().equals;
     return identical(this, other) ||
-        content == other.content && listEquals(toolCalls, other.toolCalls);
+        content == other.content &&
+            reasoningContent == other.reasoningContent &&
+            listEquals(toolCalls, other.toolCalls);
   }
 
   @override
-  int get hashCode => content.hashCode ^ toolCalls.hashCode;
+  int get hashCode => Object.hash(
+    content,
+    reasoningContent,
+    const DeepCollectionEquality().hash(toolCalls),
+  );
 
   @override
   AIChatMessage concat(final ChatMessage other) {
@@ -401,6 +421,7 @@ class AIChatMessage extends ChatMessage {
 
     return AIChatMessage(
       content: content + other.content,
+      reasoningContent: reasoningContent + other.reasoningContent,
       toolCalls: toolCalls,
     );
   }
@@ -410,6 +431,7 @@ class AIChatMessage extends ChatMessage {
     return '''
 AIChatMessage{
   content: $content,
+  reasoningContent: $reasoningContent,
   toolCalls: $toolCalls,
 }''';
   }

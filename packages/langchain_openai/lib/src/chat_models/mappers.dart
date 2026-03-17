@@ -181,6 +181,10 @@ extension CreateChatCompletionResponseMapper on oai.ChatCompletion {
       id: id,
       output: AIChatMessage(
         content: msg.content ?? '',
+        reasoningContent: _mapReasoningContent(
+          reasoningContent: msg.reasoningContent,
+          reasoning: msg.reasoning,
+        ),
         toolCalls:
             msg.toolCalls?.map(_mapMessageToolCall).toList(growable: false) ??
             const [],
@@ -191,6 +195,14 @@ extension CreateChatCompletionResponseMapper on oai.ChatCompletion {
         'created': created,
         'system_fingerprint': systemFingerprint,
         'logprobs': choice.logprobs?.toJson(),
+        if (msg.reasoningContent != null && msg.reasoningContent!.isNotEmpty)
+          'reasoning_content': msg.reasoningContent,
+        if (msg.reasoning != null && msg.reasoning!.isNotEmpty)
+          'reasoning': msg.reasoning,
+        if (msg.reasoningDetails != null && msg.reasoningDetails!.isNotEmpty)
+          'reasoning_details': msg.reasoningDetails!
+              .map((detail) => detail.toJson())
+              .toList(growable: false),
       },
       usage: _mapUsage(usage),
     );
@@ -258,6 +270,10 @@ extension CreateChatCompletionStreamResponseMapper on oai.ChatStreamEvent {
       id: id,
       output: AIChatMessage(
         content: delta?.content ?? '',
+        reasoningContent: _mapReasoningContent(
+          reasoningContent: delta?.reasoningContent,
+          reasoning: delta?.reasoning,
+        ),
         toolCalls:
             delta?.toolCalls
                 ?.map(_mapMessageToolCall)
@@ -269,6 +285,16 @@ extension CreateChatCompletionStreamResponseMapper on oai.ChatStreamEvent {
         if (created != null) 'created': created,
         if (model != null) 'model': model,
         if (systemFingerprint != null) 'system_fingerprint': systemFingerprint,
+        if (delta?.reasoningContent != null &&
+            delta!.reasoningContent!.isNotEmpty)
+          'reasoning_content': delta.reasoningContent,
+        if (delta?.reasoning != null && delta!.reasoning!.isNotEmpty)
+          'reasoning': delta.reasoning,
+        if (delta?.reasoningDetails != null &&
+            delta!.reasoningDetails!.isNotEmpty)
+          'reasoning_details': delta.reasoningDetails!
+              .map((detail) => detail.toJson())
+              .toList(growable: false),
       },
       usage: _mapUsage(usage),
       streaming: true,
@@ -287,6 +313,21 @@ extension CreateChatCompletionStreamResponseMapper on oai.ChatStreamEvent {
       arguments: args,
     );
   }
+}
+
+String _mapReasoningContent({
+  required final String? reasoningContent,
+  required final String? reasoning,
+}) {
+  final parts = <String>[
+    if (reasoningContent != null && reasoningContent.isNotEmpty)
+      reasoningContent,
+    if (reasoning != null &&
+        reasoning.isNotEmpty &&
+        reasoning != reasoningContent)
+      reasoning,
+  ];
+  return parts.join('\n');
 }
 
 extension ChatOpenAIResponseFormatMapper on ChatOpenAIResponseFormat {

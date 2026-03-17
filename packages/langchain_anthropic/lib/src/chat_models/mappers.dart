@@ -180,7 +180,6 @@ extension ChatMessageListMapper on List<ChatMessage> {
 
 extension MessageMapper on a.Message {
   ChatResult toChatResult() {
-    final content = '$thinking$text';
     final toolCalls = toolUseBlocks
         .map(
           (tu) => AIChatMessageToolCall(
@@ -193,7 +192,11 @@ extension MessageMapper on a.Message {
         .toList(growable: false);
     return ChatResult(
       id: id,
-      output: AIChatMessage(content: content, toolCalls: toolCalls),
+      output: AIChatMessage(
+        content: text,
+        reasoningContent: thinking,
+        toolCalls: toolCalls,
+      ),
       finishReason: _mapFinishReason(stopReason),
       metadata: {'model': model, 'stop_sequence': stopSequence},
       usage: _mapUsage(usage),
@@ -233,7 +236,8 @@ class MessageStreamEventTransformer
     return ChatResult(
       id: msg.id,
       output: AIChatMessage(
-        content: '${msg.thinking}${msg.text}',
+        content: msg.text,
+        reasoningContent: msg.thinking,
         toolCalls: msg.toolUseBlocks
             .map(
               (tu) => AIChatMessageToolCall(
@@ -269,7 +273,9 @@ class MessageStreamEventTransformer
   }
 
   ChatResult _mapContentBlockStartEvent(final a.ContentBlockStartEvent e) {
-    final (content, toolCall) = _mapContentBlock(e.contentBlock);
+    final (content, reasoningContent, toolCall) = _mapContentBlock(
+      e.contentBlock,
+    );
     if (toolCall != null) {
       lastToolCallId = toolCall.id;
     }
@@ -278,6 +284,7 @@ class MessageStreamEventTransformer
       id: lastMessageId ?? '',
       output: AIChatMessage(
         content: content,
+        reasoningContent: reasoningContent,
         toolCalls: [if (toolCall != null) toolCall],
       ),
       finishReason: FinishReason.unspecified,
@@ -288,10 +295,17 @@ class MessageStreamEventTransformer
   }
 
   ChatResult _mapContentBlockDeltaEvent(final a.ContentBlockDeltaEvent e) {
-    final (content, toolCalls) = _mapContentBlockDelta(lastToolCallId, e.delta);
+    final (content, reasoningContent, toolCalls) = _mapContentBlockDelta(
+      lastToolCallId,
+      e.delta,
+    );
     return ChatResult(
       id: lastMessageId ?? '',
-      output: AIChatMessage(content: content, toolCalls: toolCalls),
+      output: AIChatMessage(
+        content: content,
+        reasoningContent: reasoningContent,
+        toolCalls: toolCalls,
+      ),
       finishReason: FinishReason.unspecified,
       metadata: {'index': e.index},
       usage: const LanguageModelUsage(),
@@ -311,12 +325,12 @@ class MessageStreamEventTransformer
 }
 
 /// Maps a single content block from stream start event.
-(String content, AIChatMessageToolCall? toolCall) _mapContentBlock(
-  final a.ContentBlock contentBlock,
-) => switch (contentBlock) {
-  final a.TextBlock t => (t.text, null),
-  final a.ThinkingBlock t => (t.thinking, null),
+(String content, String reasoningContent, AIChatMessageToolCall? toolCall)
+_mapContentBlock(final a.ContentBlock contentBlock) => switch (contentBlock) {
+  final a.TextBlock t => (t.text, '', null),
+  final a.ThinkingBlock t => ('', t.thinking, null),
   final a.ToolUseBlock tu => (
+    '',
     '',
     AIChatMessageToolCall(
       id: tu.id,
@@ -325,19 +339,21 @@ class MessageStreamEventTransformer
       arguments: tu.input,
     ),
   ),
-  a.RedactedThinkingBlock() => ('', null),
-  a.ServerToolUseBlock() => ('', null),
-  a.WebSearchToolResultBlock() => ('', null),
-  _ => ('', null),
+  a.RedactedThinkingBlock() => ('', '', null),
+  a.ServerToolUseBlock() => ('', '', null),
+  a.WebSearchToolResultBlock() => ('', '', null),
+  _ => ('', '', null),
 };
 
 /// Maps a content block delta from streaming events.
-(String content, List<AIChatMessageToolCall> toolCalls) _mapContentBlockDelta(
+(String content, String reasoningContent, List<AIChatMessageToolCall> toolCalls)
+_mapContentBlockDelta(
   final String? lastToolId,
   final a.ContentBlockDelta blockDelta,
 ) => switch (blockDelta) {
-  final a.TextDelta t => (t.text, const <AIChatMessageToolCall>[]),
+  final a.TextDelta t => (t.text, '', const <AIChatMessageToolCall>[]),
   final a.InputJsonDelta jb => (
+    '',
     '',
     [
       AIChatMessageToolCall(
@@ -348,10 +364,10 @@ class MessageStreamEventTransformer
       ),
     ],
   ),
-  final a.ThinkingDelta t => (t.thinking, const <AIChatMessageToolCall>[]),
-  a.SignatureDelta() => ('', const <AIChatMessageToolCall>[]),
-  a.CitationsDelta() => ('', const <AIChatMessageToolCall>[]),
-  _ => ('', const <AIChatMessageToolCall>[]),
+  final a.ThinkingDelta t => ('', t.thinking, const <AIChatMessageToolCall>[]),
+  a.SignatureDelta() => ('', '', const <AIChatMessageToolCall>[]),
+  a.CitationsDelta() => ('', '', const <AIChatMessageToolCall>[]),
+  _ => ('', '', const <AIChatMessageToolCall>[]),
 };
 
 extension ToolSpecListMapper on List<ToolSpec> {
